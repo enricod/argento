@@ -1,0 +1,7 @@
+[package]
+name = "argento-io"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+argento-core.workspace = true

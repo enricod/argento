@@ -23,7 +23,7 @@ bianco e nero. Verifica di disponibilità (2026-11-21):
 I marchi registrati (EUIPO/USPTO) non sono stati verificati.
 
 - **Crate e binario:** `argento`
-- **App ID:** `io.github.<utente>.Argento`
+- **App ID:** `io.github.enricod.Argento`
 
 ---
 

@@ -1,0 +1,11 @@
+[workspace]
+resolver = "3"
+members = ["crates/argento-core", "crates/argento-io", "crates/argento-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+argento-core = { path = "crates/argento-core" }
+argento-io = { path = "crates/argento-io" }
