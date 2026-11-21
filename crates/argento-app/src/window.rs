@@ -12,20 +12,26 @@ use argento_core::recipe::Recipe;
 
 use crate::adjustments;
 use crate::canvas::Canvas;
-use crate::worker::{PROXY_SIDE, Rendered, Worker};
+use crate::worker::{PROXY_SIDE, PhotoId, Rendered, Worker};
 
 pub fn build(app: &adw::Application) {
     let canvas = Canvas::new();
     let presets = placeholder("Presets");
 
+    // Previews are shown only for this photo: none while a photo is loading.
+    let accepted: Rc<Cell<Option<PhotoId>>> = Rc::new(Cell::new(None));
     let worker = {
-        let canvas = canvas.clone();
-        Rc::new(Worker::spawn(move |preview| canvas.show(&texture(preview))))
+        let (canvas, accepted) = (canvas.clone(), accepted.clone());
+        Rc::new(Worker::spawn(move |preview| {
+            if accepted.get() == Some(preview.photo) {
+                canvas.show(&texture(preview));
+            }
+        }))
     };
     let recipe = Rc::new(RefCell::new(Recipe::default()));
     let adjustments = {
         let worker = worker.clone();
-        adjustments::build(recipe, move |recipe| worker.render(recipe))
+        adjustments::build(recipe.clone(), move |recipe| worker.render(recipe))
     };
 
     let right = gtk::Paned::builder()
@@ -66,9 +72,13 @@ pub fn build(app: &adw::Application) {
 
     let photos = Photos {
         window: window.clone(),
+        canvas: canvas.clone(),
         title,
         toasts,
         worker,
+        recipe,
+        accepted,
+        displayed: Rc::new(Cell::new(None)),
         latest: Rc::new(Cell::new(0)),
     };
 
@@ -104,9 +114,15 @@ pub fn build(app: &adw::Application) {
 #[derive(Clone)]
 struct Photos {
     window: adw::ApplicationWindow,
+    canvas: Canvas,
     title: adw::WindowTitle,
     toasts: adw::ToastOverlay,
     worker: Rc<Worker>,
+    recipe: Rc<RefCell<Recipe>>,
+    /// The photo whose previews reach the canvas.
+    accepted: Rc<Cell<Option<PhotoId>>>,
+    /// The last photo opened successfully.
+    displayed: Rc<Cell<Option<PhotoId>>>,
     /// Number of the last load requested: an older load that finishes later
     /// is discarded.
     latest: Rc<Cell<u64>>,
@@ -147,6 +163,8 @@ impl Photos {
     fn load(&self, path: PathBuf) {
         let request = self.latest.get() + 1;
         self.latest.set(request);
+        self.accepted.set(None);
+        self.canvas.show_loading(&file_name(&path));
 
         let this = self.clone();
         glib::spawn_future_local(async move {
@@ -162,13 +180,27 @@ impl Photos {
             let name = file_name(&path);
             match result {
                 Ok(Ok(proxy)) => {
-                    this.worker.set_photo(proxy);
+                    // The spinner stays until the first preview arrives.
+                    let id = this.worker.set_photo(proxy);
+                    this.displayed.set(Some(id));
+                    this.accepted.set(Some(id));
                     this.title.set_subtitle(&name);
                 }
-                Ok(Err(e)) => this.toast(&format!("Cannot open {name}: {e}")),
-                Err(_) => this.toast(&format!("Cannot open {name}: the loader crashed")),
+                Ok(Err(e)) => this.failed(&format!("Cannot open {name}: {e}")),
+                Err(_) => this.failed(&format!("Cannot open {name}: the loader crashed")),
             }
         });
+    }
+
+    /// Goes back to the photo shown before, brought up to date with any
+    /// adjustment made while loading.
+    fn failed(&self, message: &str) {
+        self.accepted.set(self.displayed.get());
+        self.canvas.stop_loading();
+        if self.displayed.get().is_some() {
+            self.worker.render(*self.recipe.borrow());
+        }
+        self.toast(message);
     }
 
     fn toast(&self, message: &str) {

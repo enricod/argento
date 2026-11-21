@@ -3,6 +3,7 @@
 //! Only the latest request counts: requests that pile up while a render is
 //! running are merged, and only the newest photo and recipe are rendered.
 
+use std::cell::Cell;
 use std::sync::mpsc;
 use std::thread;
 
@@ -14,13 +15,18 @@ use gtk::glib;
 /// Longer side of the proxy the preview is rendered on.
 pub const PROXY_SIDE: u32 = 2048;
 
+/// Identifies a photo given to the worker. Ids start at 1.
+pub type PhotoId = u64;
+
 enum Job {
-    Photo(RgbImage),
+    Photo(PhotoId, RgbImage),
     Recipe(Recipe),
 }
 
 /// A rendered preview, as 8-bit sRGB, three bytes per pixel.
 pub struct Rendered {
+    /// The photo this preview belongs to.
+    pub photo: PhotoId,
     pub width: u32,
     pub height: u32,
     pub pixels: Vec<u8>,
@@ -28,6 +34,7 @@ pub struct Rendered {
 
 pub struct Worker {
     jobs: mpsc::Sender<Job>,
+    last_photo: Cell<PhotoId>,
 }
 
 impl Worker {
@@ -45,13 +52,19 @@ impl Worker {
                 on_render(preview);
             }
         });
-        Self { jobs }
+        Self {
+            jobs,
+            last_photo: Cell::new(0),
+        }
     }
 
     /// Replaces the photo, given as its proxy, and renders it with the
-    /// current recipe.
-    pub fn set_photo(&self, proxy: RgbImage) {
-        self.send(Job::Photo(proxy));
+    /// current recipe. Returns the id its previews will carry.
+    pub fn set_photo(&self, proxy: RgbImage) -> PhotoId {
+        let id = self.last_photo.get() + 1;
+        self.last_photo.set(id);
+        self.send(Job::Photo(id, proxy));
+        id
     }
 
     /// Renders the current photo with a new recipe.
@@ -68,11 +81,15 @@ impl Worker {
 
 fn render_loop(pending: &mpsc::Receiver<Job>, finished: &async_channel::Sender<Rendered>) {
     let mut pipeline = None;
+    let mut photo = 0;
     let mut recipe = Recipe::default();
     while let Ok(job) = pending.recv() {
         for job in std::iter::once(job).chain(pending.try_iter()) {
             match job {
-                Job::Photo(proxy) => pipeline = Some(Pipeline::new(proxy)),
+                Job::Photo(id, proxy) => {
+                    photo = id;
+                    pipeline = Some(Pipeline::new(proxy));
+                }
                 Job::Recipe(newer) => recipe = newer,
             }
         }
@@ -81,6 +98,7 @@ fn render_loop(pending: &mpsc::Receiver<Job>, finished: &async_channel::Sender<R
         };
         let output = pipeline.run(&recipe);
         let preview = Rendered {
+            photo,
             width: output.width(),
             height: output.height(),
             pixels: output.to_srgb8(),

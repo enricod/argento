@@ -7,6 +7,7 @@ use gtk::gdk;
 pub struct Canvas {
     root: gtk::Stack,
     picture: gtk::Picture,
+    loading: adw::StatusPage,
 }
 
 impl Canvas {
@@ -21,13 +22,25 @@ impl Canvas {
             .can_shrink(true)
             .build();
 
-        let root = gtk::Stack::builder().hexpand(true).vexpand(true).build();
+        let loading = adw::StatusPage::new();
+        loading.set_paintable(Some(&adw::SpinnerPaintable::new(Some(&loading))));
+
+        let root = gtk::Stack::builder()
+            .hexpand(true)
+            .vexpand(true)
+            .transition_type(gtk::StackTransitionType::Crossfade)
+            .build();
         root.set_size_request(200, -1);
         root.add_named(&empty, Some("empty"));
         root.add_named(&picture, Some("photo"));
+        root.add_named(&loading, Some("loading"));
         root.set_visible_child_name("empty");
 
-        Self { root, picture }
+        Self {
+            root,
+            picture,
+            loading,
+        }
     }
 
     pub fn widget(&self) -> &gtk::Stack {
@@ -37,5 +50,18 @@ impl Canvas {
     pub fn show(&self, texture: &gdk::Texture) {
         self.picture.set_paintable(Some(texture));
         self.root.set_visible_child_name("photo");
+    }
+
+    /// A spinner in place of the photo while `name` is being opened.
+    pub fn show_loading(&self, name: &str) {
+        self.loading.set_title(&format!("Opening {name}"));
+        self.root.set_visible_child_name("loading");
+    }
+
+    /// Back to the photo shown before loading started, or to the hint if
+    /// there was none.
+    pub fn stop_loading(&self) {
+        let page = if self.picture.paintable().is_some() { "photo" } else { "empty" };
+        self.root.set_visible_child_name(page);
     }
 }

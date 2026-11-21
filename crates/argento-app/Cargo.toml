@@ -8,7 +8,7 @@ name = "argento"
 path = "src/main.rs"
 
 [dependencies]
-adw = { version = "0.9.2", package = "libadwaita", features = ["v1_4"] }
+adw = { version = "0.9.2", package = "libadwaita", features = ["v1_6"] }
 argento-core.workspace = true
 argento-io.workspace = true
 async-channel = "2.5.0"
