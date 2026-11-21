@@ -22,7 +22,11 @@ impl RgbImage {
             width as usize * height as usize * 3,
             "an {width}x{height} RGB image needs width * height * 3 samples"
         );
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     /// Converts sRGB-encoded samples in `[0, 1]` to the linear working space.
@@ -111,7 +115,11 @@ impl GrayImage {
             width as usize * height as usize,
             "an {width}x{height} grey image needs width * height samples"
         );
-        Self { width, height, data }
+        Self {
+            width,
+            height,
+            data,
+        }
     }
 
     pub fn width(&self) -> u32 {
@@ -178,7 +186,10 @@ mod tests {
     fn transfer_functions_are_inverse() {
         for i in 0..=1000 {
             let v = i as f32 / 1000.0;
-            assert!((linear_to_srgb(srgb_to_linear(v)) - v).abs() < 1e-5, "at {v}");
+            assert!(
+                (linear_to_srgb(srgb_to_linear(v)) - v).abs() < 1e-5,
+                "at {v}"
+            );
         }
     }
 

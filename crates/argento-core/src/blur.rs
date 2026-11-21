@@ -36,7 +36,8 @@ fn box_radii(sigma: f32) -> [usize; 3] {
     let lower = lower.max(1);
     let upper = lower + 2;
     let (l, s2) = (lower as f32, sigma * sigma);
-    let use_lower = ((12.0 * s2 - n * l * l - 4.0 * n * l - 3.0 * n) / (-4.0 * l - 4.0)).round() as i64;
+    let use_lower =
+        ((12.0 * s2 - n * l * l - 4.0 * n * l - 3.0 * n) / (-4.0 * l - 4.0)).round() as i64;
     std::array::from_fn(|i| {
         let width = if (i as i64) < use_lower { lower } else { upper };
         ((width - 1) / 2) as usize
@@ -73,11 +74,13 @@ fn box_blur(src: &[f32], dst: &mut [f32], r: usize) {
 
 fn transpose(data: &[f32], width: usize, height: usize) -> Vec<f32> {
     let mut out = vec![0.0; data.len()];
-    out.par_chunks_mut(height).enumerate().for_each(|(x, column)| {
-        for (y, v) in column.iter_mut().enumerate() {
-            *v = data[y * width + x];
-        }
-    });
+    out.par_chunks_mut(height)
+        .enumerate()
+        .for_each(|(x, column)| {
+            for (y, v) in column.iter_mut().enumerate() {
+                *v = data[y * width + x];
+            }
+        });
     out
 }
 

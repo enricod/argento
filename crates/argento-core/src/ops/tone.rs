@@ -52,7 +52,14 @@ mod tests {
 
     fn tone(l: f32, brightness: f32, contrast: f32) -> f32 {
         let image = GrayImage::new(1, 1, vec![l]);
-        apply(&image, &ToneParams { brightness, contrast }).data()[0]
+        apply(
+            &image,
+            &ToneParams {
+                brightness,
+                contrast,
+            },
+        )
+        .data()[0]
     }
 
     #[test]
@@ -64,7 +71,13 @@ mod tests {
 
     #[test]
     fn black_and_white_never_move() {
-        for (b, c) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (0.7, -0.4)] {
+        for (b, c) in [
+            (1.0, 0.0),
+            (-1.0, 0.0),
+            (0.0, 1.0),
+            (0.0, -1.0),
+            (0.7, -0.4),
+        ] {
             assert!(tone(0.0, b, c).abs() < 1e-6);
             assert!((tone(1.0, b, c) - 1.0).abs() < 1e-5);
         }

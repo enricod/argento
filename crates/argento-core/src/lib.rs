@@ -6,4 +6,5 @@ pub mod blur;
 pub mod image;
 pub mod ops;
 pub mod pipeline;
+pub mod preset;
 pub mod recipe;

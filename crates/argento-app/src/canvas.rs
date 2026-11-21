@@ -61,7 +61,11 @@ impl Canvas {
     /// Back to the photo shown before loading started, or to the hint if
     /// there was none.
     pub fn stop_loading(&self) {
-        let page = if self.picture.paintable().is_some() { "photo" } else { "empty" };
+        let page = if self.picture.paintable().is_some() {
+            "photo"
+        } else {
+            "empty"
+        };
         self.root.set_visible_child_name(page);
     }
 }

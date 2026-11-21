@@ -10,7 +10,8 @@ use std::thread;
 use argento_core::image::RgbImage;
 use argento_core::pipeline::Pipeline;
 use argento_core::recipe::Recipe;
-use gtk::glib;
+use gtk::prelude::*;
+use gtk::{gdk, glib};
 
 /// Longer side of the proxy the preview is rendered on.
 pub const PROXY_SIDE: u32 = 2048;
@@ -30,6 +31,20 @@ pub struct Rendered {
     pub width: u32,
     pub height: u32,
     pub pixels: Vec<u8>,
+}
+
+impl Rendered {
+    pub fn texture(self) -> gdk::Texture {
+        let stride = self.width as usize * 3;
+        gdk::MemoryTexture::new(
+            self.width as i32,
+            self.height as i32,
+            gdk::MemoryFormat::R8g8b8,
+            &glib::Bytes::from_owned(self.pixels),
+            stride,
+        )
+        .upcast()
+    }
 }
 
 pub struct Worker {

@@ -28,7 +28,11 @@ pub fn load(path: &Path) -> Result<RgbImage, LoadError> {
     image.apply_orientation(orientation);
 
     let rgb = image.into_rgb32f();
-    Ok(RgbImage::from_srgb(rgb.width(), rgb.height(), rgb.into_raw()))
+    Ok(RgbImage::from_srgb(
+        rgb.width(),
+        rgb.height(),
+        rgb.into_raw(),
+    ))
 }
 
 #[cfg(test)]
@@ -128,6 +132,9 @@ mod tests {
     #[test]
     fn reports_a_missing_file() {
         let dir = dir();
-        assert!(matches!(load(&dir.path().join("gone.png")), Err(LoadError::Io(_))));
+        assert!(matches!(
+            load(&dir.path().join("gone.png")),
+            Err(LoadError::Io(_))
+        ));
     }
 }

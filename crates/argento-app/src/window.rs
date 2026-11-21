@@ -8,15 +8,17 @@ use std::rc::Rc;
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
+use argento_core::image::RgbImage;
 use argento_core::recipe::Recipe;
 
-use crate::adjustments;
+use crate::adjustments::Adjustments;
 use crate::canvas::Canvas;
-use crate::worker::{PROXY_SIDE, PhotoId, Rendered, Worker};
+use crate::preset_browser::{self, PresetBrowser, THUMBNAIL_SIDE};
+use crate::worker::{PROXY_SIDE, PhotoId, Worker};
 
 pub fn build(app: &adw::Application) {
     let canvas = Canvas::new();
-    let presets = placeholder("Presets");
+    let presets = PresetBrowser::new();
 
     // Previews are shown only for this photo: none while a photo is loading.
     let accepted: Rc<Cell<Option<PhotoId>>> = Rc::new(Cell::new(None));
@@ -24,20 +26,31 @@ pub fn build(app: &adw::Application) {
         let (canvas, accepted) = (canvas.clone(), accepted.clone());
         Rc::new(Worker::spawn(move |preview| {
             if accepted.get() == Some(preview.photo) {
-                canvas.show(&texture(preview));
+                canvas.show(&preview.texture());
             }
         }))
     };
     let recipe = Rc::new(RefCell::new(Recipe::default()));
     let adjustments = {
-        let worker = worker.clone();
-        adjustments::build(recipe.clone(), move |recipe| worker.render(recipe))
+        let (worker, presets) = (worker.clone(), presets.clone());
+        Rc::new(Adjustments::new(recipe.clone(), move |recipe| {
+            presets.unselect();
+            worker.render(recipe);
+        }))
     };
+    {
+        let (worker, recipe, adjustments) = (worker.clone(), recipe.clone(), adjustments.clone());
+        presets.connect_chosen(move |preset| {
+            preset.apply(&mut recipe.borrow_mut());
+            adjustments.sync();
+            worker.render(*recipe.borrow());
+        });
+    }
 
     let right = gtk::Paned::builder()
         .orientation(gtk::Orientation::Horizontal)
         .start_child(canvas.widget())
-        .end_child(&adjustments)
+        .end_child(adjustments.widget())
         .shrink_start_child(false)
         .resize_end_child(false)
         .shrink_end_child(false)
@@ -45,7 +58,7 @@ pub fn build(app: &adw::Application) {
         .build();
     let body = gtk::Paned::builder()
         .orientation(gtk::Orientation::Horizontal)
-        .start_child(&presets)
+        .start_child(presets.widget())
         .end_child(&right)
         .shrink_end_child(false)
         .resize_start_child(false)
@@ -75,6 +88,7 @@ pub fn build(app: &adw::Application) {
     let photos = Photos {
         window: window.clone(),
         canvas: canvas.clone(),
+        presets,
         title,
         toasts,
         worker,
@@ -117,6 +131,7 @@ pub fn build(app: &adw::Application) {
 struct Photos {
     window: adw::ApplicationWindow,
     canvas: Canvas,
+    presets: PresetBrowser,
     title: adw::WindowTitle,
     toasts: adw::ToastOverlay,
     worker: Rc<Worker>,
@@ -172,7 +187,11 @@ impl Photos {
         glib::spawn_future_local(async move {
             let decoding = path.clone();
             let result = gio::spawn_blocking(move || {
-                argento_io::load::load(&decoding).map(|photo| photo.downscale_to_fit(PROXY_SIDE))
+                argento_io::load::load(&decoding).map(|photo| {
+                    let proxy = photo.downscale_to_fit(PROXY_SIDE);
+                    let small = proxy.downscale_to_fit(THUMBNAIL_SIDE);
+                    (proxy, small)
+                })
             })
             .await;
 
@@ -181,12 +200,13 @@ impl Photos {
             }
             let name = file_name(&path);
             match result {
-                Ok(Ok(proxy)) => {
+                Ok(Ok((proxy, small))) => {
                     // The spinner stays until the first preview arrives.
                     let id = this.worker.set_photo(proxy);
                     this.displayed.set(Some(id));
                     this.accepted.set(Some(id));
                     this.title.set_subtitle(&name);
+                    this.thumbnails(id, small);
                 }
                 Ok(Err(e)) => this.failed(&format!("Cannot open {name}: {e}")),
                 Err(_) => this.failed(&format!("Cannot open {name}: the loader crashed")),
@@ -205,31 +225,29 @@ impl Photos {
         self.toast(message);
     }
 
+    /// Renders the preset thumbnails of the photo in a background thread.
+    fn thumbnails(&self, photo: PhotoId, small: RgbImage) {
+        let this = self.clone();
+        glib::spawn_future_local(async move {
+            let Ok(thumbnails) =
+                gio::spawn_blocking(move || preset_browser::render(photo, small)).await
+            else {
+                return;
+            };
+            if this.displayed.get() == Some(photo) {
+                let textures: Vec<_> = thumbnails.into_iter().map(|t| t.texture()).collect();
+                this.presets.show(&textures);
+            }
+        });
+    }
+
     fn toast(&self, message: &str) {
         self.toasts.add_toast(adw::Toast::new(message));
     }
-}
-
-fn texture(preview: Rendered) -> gdk::Texture {
-    gdk::MemoryTexture::new(
-        preview.width as i32,
-        preview.height as i32,
-        gdk::MemoryFormat::R8g8b8,
-        &glib::Bytes::from_owned(preview.pixels),
-        preview.width as usize * 3,
-    )
-    .upcast()
 }
 
 fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string())
-}
-
-fn placeholder(text: &str) -> gtk::Label {
-    let label = gtk::Label::new(Some(text));
-    label.add_css_class("dim-label");
-    label.set_size_request(200, -1);
-    label
 }

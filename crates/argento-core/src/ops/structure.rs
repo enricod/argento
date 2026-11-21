@@ -60,7 +60,9 @@ mod tests {
 
     /// A horizontal step from dark to light grey, `width` pixels wide.
     fn step(width: u32) -> GrayImage {
-        let row: Vec<f32> = (0..width).map(|x| if x < width / 2 { 0.1 } else { 0.4 }).collect();
+        let row: Vec<f32> = (0..width)
+            .map(|x| if x < width / 2 { 0.1 } else { 0.4 })
+            .collect();
         GrayImage::new(width, 4, row.repeat(4))
     }
 

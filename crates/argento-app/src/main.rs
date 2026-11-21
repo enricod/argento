@@ -2,6 +2,7 @@
 
 mod adjustments;
 mod canvas;
+mod preset_browser;
 mod window;
 mod worker;
 

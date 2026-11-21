@@ -52,7 +52,12 @@ impl Pipeline {
     }
 
     pub fn run(&mut self, recipe: &Recipe) -> RgbImage {
-        let Self { source, filtered, adjusted, .. } = self;
+        let Self {
+            source,
+            filtered,
+            adjusted,
+            ..
+        } = self;
         #[cfg(test)]
         let runs = &mut self.runs;
 
