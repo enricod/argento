@@ -79,7 +79,6 @@ pub fn build(recipe: Rc<RefCell<Recipe>>, changed: impl Fn(Recipe) + 'static) ->
     page.add(&filter_group);
     page.add(&tone_group);
     page.add(&structure_group);
-    page.set_size_request(280, -1);
     page
 }
 
