@@ -126,6 +126,12 @@ impl GrayImage {
         &self.data
     }
 
+    /// Applies `f` to every sample.
+    pub fn map(&self, f: impl Fn(f32) -> f32 + Sync) -> GrayImage {
+        let data = self.data.par_iter().map(|&v| f(v)).collect();
+        GrayImage::new(self.width, self.height, data)
+    }
+
     /// The same grey in all three channels.
     pub fn to_rgb(&self) -> RgbImage {
         let data = self.data.par_iter().flat_map_iter(|&v| [v, v, v]).collect();

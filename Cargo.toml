@@ -9,3 +9,8 @@ edition = "2024"
 [workspace.dependencies]
 argento-core = { path = "crates/argento-core" }
 argento-io = { path = "crates/argento-io" }
+
+# The image processing is too slow unoptimised for a fluid preview, even
+# during development.
+[profile.dev.package.argento-core]
+opt-level = 3
