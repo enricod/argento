@@ -1,5 +1,8 @@
 //! The central panel: the photo, or a hint on how to open one.
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
 use adw::prelude::*;
 use gtk::gdk;
 
@@ -8,6 +11,11 @@ pub struct Canvas {
     root: gtk::Stack,
     picture: gtk::Picture,
     loading: adw::StatusPage,
+    /// The photo as opened, and the latest preview of the edit.
+    before: Rc<RefCell<Option<gdk::Texture>>>,
+    after: Rc<RefCell<Option<gdk::Texture>>>,
+    /// Whether the photo is shown as opened instead of edited.
+    comparing: Rc<Cell<bool>>,
 }
 
 impl Canvas {
@@ -40,6 +48,9 @@ impl Canvas {
             root,
             picture,
             loading,
+            before: Rc::default(),
+            after: Rc::default(),
+            comparing: Rc::default(),
         }
     }
 
@@ -47,9 +58,32 @@ impl Canvas {
         &self.root
     }
 
-    pub fn show(&self, texture: &gdk::Texture) {
-        self.picture.set_paintable(Some(texture));
+    /// Shows a new preview of the edit.
+    pub fn show(&self, texture: gdk::Texture) {
+        *self.after.borrow_mut() = Some(texture);
+        self.refresh();
         self.root.set_visible_child_name("photo");
+    }
+
+    /// Sets the photo as opened, shown while comparing. Its first preview
+    /// follows with [`Canvas::show`].
+    pub fn set_before(&self, texture: gdk::Texture) {
+        *self.before.borrow_mut() = Some(texture);
+    }
+
+    /// Switches between the photo as opened and the edit.
+    pub fn set_comparing(&self, comparing: bool) {
+        self.comparing.set(comparing);
+        self.refresh();
+    }
+
+    fn refresh(&self) {
+        let shown = if self.comparing.get() {
+            &self.before
+        } else {
+            &self.after
+        };
+        self.picture.set_paintable(shown.borrow().as_ref());
     }
 
     /// A spinner in place of the photo while `name` is being opened.

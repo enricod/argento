@@ -11,6 +11,8 @@ use argento_core::image::RgbImage;
 use argento_core::pipeline::Pipeline;
 use argento_core::recipe::Recipe;
 use gtk::prelude::*;
+
+use crate::histogram;
 use gtk::{gdk, glib};
 
 /// Longer side of the proxy the preview is rendered on.
@@ -35,16 +37,26 @@ pub struct Rendered {
 
 impl Rendered {
     pub fn texture(self) -> gdk::Texture {
-        let stride = self.width as usize * 3;
-        gdk::MemoryTexture::new(
-            self.width as i32,
-            self.height as i32,
-            gdk::MemoryFormat::R8g8b8,
-            &glib::Bytes::from_owned(self.pixels),
-            stride,
-        )
-        .upcast()
+        texture(self.width, self.height, self.pixels)
     }
+}
+
+/// A texture of 8-bit sRGB pixels, three bytes each.
+pub fn texture(width: u32, height: u32, pixels: Vec<u8>) -> gdk::Texture {
+    gdk::MemoryTexture::new(
+        width as i32,
+        height as i32,
+        gdk::MemoryFormat::R8g8b8,
+        &glib::Bytes::from_owned(pixels),
+        width as usize * 3,
+    )
+    .upcast()
+}
+
+/// A preview of the photo, with its histogram.
+pub struct Preview {
+    pub image: Rendered,
+    pub histogram: [u32; histogram::BINS],
 }
 
 pub struct Worker {
@@ -55,7 +67,7 @@ pub struct Worker {
 impl Worker {
     /// Starts the thread. `on_render` is called on the UI thread with each
     /// finished preview.
-    pub fn spawn(on_render: impl Fn(Rendered) + 'static) -> Self {
+    pub fn spawn(on_render: impl Fn(Preview) + 'static) -> Self {
         let (jobs, pending) = mpsc::channel();
         let (finished, rendered) = async_channel::unbounded();
         thread::Builder::new()
@@ -94,7 +106,7 @@ impl Worker {
     }
 }
 
-fn render_loop(pending: &mpsc::Receiver<Job>, finished: &async_channel::Sender<Rendered>) {
+fn render_loop(pending: &mpsc::Receiver<Job>, finished: &async_channel::Sender<Preview>) {
     let mut pipeline = None;
     let mut photo = 0;
     let mut recipe = Recipe::default();
@@ -112,11 +124,15 @@ fn render_loop(pending: &mpsc::Receiver<Job>, finished: &async_channel::Sender<R
             continue;
         };
         let output = pipeline.run(&recipe);
-        let preview = Rendered {
-            photo,
-            width: output.width(),
-            height: output.height(),
-            pixels: output.to_srgb8(),
+        let pixels = output.to_srgb8();
+        let preview = Preview {
+            histogram: histogram::count(&pixels),
+            image: Rendered {
+                photo,
+                width: output.width(),
+                height: output.height(),
+                pixels,
+            },
         };
         if finished.send_blocking(preview).is_err() {
             return;

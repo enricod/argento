@@ -24,7 +24,7 @@ fn label(filter: Filter) -> &'static str {
 #[derive(Clone)]
 struct Shared {
     recipe: Rc<RefCell<Recipe>>,
-    changed: Changed,
+    changed: Rc<RefCell<Option<Changed>>>,
     /// Set while the controls are being brought in line with the recipe:
     /// their handlers then do nothing.
     syncing: Rc<Cell<bool>>,
@@ -36,7 +36,10 @@ impl Shared {
             return;
         }
         edit(&mut self.recipe.borrow_mut());
-        (self.changed)(*self.recipe.borrow());
+        let recipe = *self.recipe.borrow();
+        if let Some(changed) = self.changed.borrow().as_ref() {
+            changed(recipe);
+        }
     }
 }
 
@@ -52,11 +55,11 @@ pub struct Adjustments {
 
 impl Adjustments {
     /// Builds the panel. Each change made by the user is written into
-    /// `recipe`, then `changed` is called with the new recipe.
-    pub fn new(recipe: Rc<RefCell<Recipe>>, changed: impl Fn(Recipe) + 'static) -> Self {
+    /// `recipe`.
+    pub fn new(recipe: Rc<RefCell<Recipe>>) -> Self {
         let shared = Shared {
             recipe,
-            changed: Rc::new(changed),
+            changed: Rc::default(),
             syncing: Rc::new(Cell::new(false)),
         };
 
@@ -111,6 +114,12 @@ impl Adjustments {
         };
         adjustments.sync();
         adjustments
+    }
+
+    /// Calls `changed` with the new recipe after each change made by the
+    /// user.
+    pub fn connect_changed(&self, changed: impl Fn(Recipe) + 'static) {
+        *self.shared.changed.borrow_mut() = Some(Rc::new(changed));
     }
 
     pub fn widget(&self) -> &adw::PreferencesPage {
