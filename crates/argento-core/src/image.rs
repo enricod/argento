@@ -47,6 +47,42 @@ impl RgbImage {
         &self.data
     }
 
+    /// A copy whose longer side is at most `max_side` pixels, each pixel the
+    /// average of the source pixels it covers. An image already small enough
+    /// is copied unchanged.
+    pub fn downscale_to_fit(&self, max_side: u32) -> RgbImage {
+        let (sw, sh) = (self.width as usize, self.height as usize);
+        let longest = sw.max(sh);
+        let max_side = max_side.max(1) as usize;
+        if longest <= max_side {
+            return self.clone();
+        }
+        let scaled = |side: usize| (side * max_side).div_ceil(longest).max(1);
+        let (w, h) = (scaled(sw), scaled(sh));
+
+        let mut data = vec![0.0; w * h * 3];
+        data.par_chunks_mut(w * 3).enumerate().for_each(|(y, row)| {
+            let (y0, y1) = (y * sh / h, ((y + 1) * sh / h).max(y * sh / h + 1));
+            for x in 0..w {
+                let (x0, x1) = (x * sw / w, ((x + 1) * sw / w).max(x * sw / w + 1));
+                let mut sum = [0.0f32; 3];
+                for sy in y0..y1 {
+                    let line = &self.data[(sy * sw + x0) * 3..(sy * sw + x1) * 3];
+                    for pixel in line.as_chunks::<3>().0 {
+                        for (total, v) in sum.iter_mut().zip(pixel) {
+                            *total += v;
+                        }
+                    }
+                }
+                let count = ((y1 - y0) * (x1 - x0)) as f32;
+                for c in 0..3 {
+                    row[x * 3 + c] = sum[c] / count;
+                }
+            }
+        });
+        RgbImage::from_linear(w as u32, h as u32, data)
+    }
+
     /// Encodes the image as 8-bit sRGB, three bytes per pixel, for display.
     /// Values outside `[0, 1]` are clipped.
     pub fn to_srgb8(&self) -> Vec<u8> {
@@ -54,6 +90,46 @@ impl RgbImage {
             .par_iter()
             .map(|&v| (linear_to_srgb(v.clamp(0.0, 1.0)) * 255.0).round() as u8)
             .collect()
+    }
+}
+
+/// A single-channel image in linear light: one `f32` luminance sample per
+/// pixel, row by row.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GrayImage {
+    width: u32,
+    height: u32,
+    data: Vec<f32>,
+}
+
+impl GrayImage {
+    /// # Panics
+    /// If `data` does not hold exactly `width * height` samples.
+    pub fn new(width: u32, height: u32, data: Vec<f32>) -> Self {
+        assert_eq!(
+            data.len(),
+            width as usize * height as usize,
+            "an {width}x{height} grey image needs width * height samples"
+        );
+        Self { width, height, data }
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn data(&self) -> &[f32] {
+        &self.data
+    }
+
+    /// The same grey in all three channels.
+    pub fn to_rgb(&self) -> RgbImage {
+        let data = self.data.par_iter().flat_map_iter(|&v| [v, v, v]).collect();
+        RgbImage::from_linear(self.width, self.height, data)
     }
 }
 
@@ -112,6 +188,40 @@ mod tests {
     fn to_srgb8_clips_out_of_range_values() {
         let image = RgbImage::from_linear(1, 1, vec![-0.5, 2.0, 1.0]);
         assert_eq!(image.to_srgb8(), [0, 255, 255]);
+    }
+
+    #[test]
+    fn downscale_keeps_the_aspect_ratio_and_fits_the_longer_side() {
+        let image = RgbImage::from_linear(4000, 3000, vec![0.5; 4000 * 3000 * 3]);
+        let proxy = image.downscale_to_fit(2048);
+        assert_eq!((proxy.width(), proxy.height()), (2048, 1536));
+        assert!(proxy.data().iter().all(|&v| (v - 0.5).abs() < 1e-6));
+    }
+
+    #[test]
+    fn downscale_averages_in_linear_light() {
+        // A black and a white pixel become one mid-grey pixel (0.5 linear).
+        let image = RgbImage::from_linear(2, 1, vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+        assert_eq!(image.downscale_to_fit(1).data(), [0.5, 0.5, 0.5]);
+    }
+
+    #[test]
+    fn downscale_leaves_a_small_image_alone() {
+        let image = RgbImage::from_linear(3, 2, (0..18).map(|v| v as f32).collect());
+        assert_eq!(image.downscale_to_fit(2048), image);
+    }
+
+    #[test]
+    fn downscale_never_reaches_zero_pixels() {
+        let image = RgbImage::from_linear(1000, 1, vec![0.2; 3000]);
+        let proxy = image.downscale_to_fit(10);
+        assert_eq!((proxy.width(), proxy.height()), (10, 1));
+    }
+
+    #[test]
+    fn grey_to_rgb_repeats_the_value_in_each_channel() {
+        let grey = GrayImage::new(2, 1, vec![0.1, 0.9]);
+        assert_eq!(grey.to_rgb().data(), [0.1, 0.1, 0.1, 0.9, 0.9, 0.9]);
     }
 
     #[test]

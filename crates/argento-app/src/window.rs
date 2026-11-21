@@ -1,19 +1,32 @@
 //! The main window: presets on the left, the photo in the centre,
 //! adjustments on the right.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
+use argento_core::recipe::Recipe;
+
+use crate::adjustments;
 use crate::canvas::Canvas;
+use crate::worker::{PROXY_SIDE, Rendered, Worker};
 
 pub fn build(app: &adw::Application) {
     let canvas = Canvas::new();
     let presets = placeholder("Presets");
-    let adjustments = placeholder("Adjustments");
+
+    let worker = {
+        let canvas = canvas.clone();
+        Rc::new(Worker::spawn(move |preview| canvas.show(&texture(preview))))
+    };
+    let recipe = Rc::new(RefCell::new(Recipe::default()));
+    let adjustments = {
+        let worker = worker.clone();
+        adjustments::build(recipe, move |recipe| worker.render(recipe))
+    };
 
     let right = gtk::Paned::builder()
         .orientation(gtk::Orientation::Horizontal)
@@ -21,7 +34,7 @@ pub fn build(app: &adw::Application) {
         .end_child(&adjustments)
         .resize_end_child(false)
         .shrink_end_child(false)
-        .position(880)
+        .position(840)
         .build();
     let body = gtk::Paned::builder()
         .orientation(gtk::Orientation::Horizontal)
@@ -53,9 +66,9 @@ pub fn build(app: &adw::Application) {
 
     let photos = Photos {
         window: window.clone(),
-        canvas: canvas.clone(),
         title,
         toasts,
+        worker,
         latest: Rc::new(Cell::new(0)),
     };
 
@@ -87,13 +100,13 @@ pub fn build(app: &adw::Application) {
     window.present();
 }
 
-/// Opens photos and shows them on the canvas.
+/// Opens photos and hands them to the preview worker.
 #[derive(Clone)]
 struct Photos {
     window: adw::ApplicationWindow,
-    canvas: Canvas,
     title: adw::WindowTitle,
     toasts: adw::ToastOverlay,
+    worker: Rc<Worker>,
     /// Number of the last load requested: an older load that finishes later
     /// is discarded.
     latest: Rc<Cell<u64>>,
@@ -129,7 +142,8 @@ impl Photos {
         });
     }
 
-    /// Decodes the photo in a background thread, then shows it.
+    /// Decodes the photo and makes its proxy in a background thread, then
+    /// sends the proxy to the preview worker.
     fn load(&self, path: PathBuf) {
         let request = self.latest.get() + 1;
         self.latest.set(request);
@@ -138,8 +152,7 @@ impl Photos {
         glib::spawn_future_local(async move {
             let decoding = path.clone();
             let result = gio::spawn_blocking(move || {
-                argento_io::load::load(&decoding)
-                    .map(|image| (image.width(), image.height(), image.to_srgb8()))
+                argento_io::load::load(&decoding).map(|photo| photo.downscale_to_fit(PROXY_SIDE))
             })
             .await;
 
@@ -148,15 +161,8 @@ impl Photos {
             }
             let name = file_name(&path);
             match result {
-                Ok(Ok((width, height, pixels))) => {
-                    let texture = gdk::MemoryTexture::new(
-                        width as i32,
-                        height as i32,
-                        gdk::MemoryFormat::R8g8b8,
-                        &glib::Bytes::from_owned(pixels),
-                        width as usize * 3,
-                    );
-                    this.canvas.show(texture.upcast_ref());
+                Ok(Ok(proxy)) => {
+                    this.worker.set_photo(proxy);
                     this.title.set_subtitle(&name);
                 }
                 Ok(Err(e)) => this.toast(&format!("Cannot open {name}: {e}")),
@@ -168,6 +174,17 @@ impl Photos {
     fn toast(&self, message: &str) {
         self.toasts.add_toast(adw::Toast::new(message));
     }
+}
+
+fn texture(preview: Rendered) -> gdk::Texture {
+    gdk::MemoryTexture::new(
+        preview.width as i32,
+        preview.height as i32,
+        gdk::MemoryFormat::R8g8b8,
+        &glib::Bytes::from_owned(preview.pixels),
+        preview.width as usize * 3,
+    )
+    .upcast()
 }
 
 fn file_name(path: &Path) -> String {

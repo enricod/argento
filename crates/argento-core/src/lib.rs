@@ -3,3 +3,6 @@
 //! Pure processing only: this crate depends on neither GTK nor the file system.
 
 pub mod image;
+pub mod ops;
+pub mod pipeline;
+pub mod recipe;
