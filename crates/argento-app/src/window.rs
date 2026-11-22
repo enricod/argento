@@ -4,25 +4,21 @@
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::time::Duration;
 
 use adw::prelude::*;
 use gtk::{gdk, gio, glib};
 
 use argento_core::image::RgbImage;
-use argento_core::preset::Preset;
+use argento_core::pipeline::Pipeline;
 use argento_core::recipe::Recipe;
+use argento_io::sidecar::{self, SidecarError};
 
 use crate::adjustments::Adjustments;
 use crate::canvas::Canvas;
+use crate::editor::Editor;
 use crate::histogram::Histogram;
-use crate::history::History;
 use crate::preset_browser::{self, PresetBrowser, THUMBNAIL_SIDE};
 use crate::worker::{self, PROXY_SIDE, PhotoId, Worker};
-
-/// How long the recipe must stay still before a change becomes a step of
-/// the history: a slider drag is one step, not hundreds.
-const SETTLE: Duration = Duration::from_millis(600);
 
 pub fn build(app: &adw::Application) {
     let canvas = Canvas::new();
@@ -42,36 +38,6 @@ pub fn build(app: &adw::Application) {
     };
     let recipe = Rc::new(RefCell::new(Recipe::default()));
     let adjustments = Rc::new(Adjustments::new(recipe.clone()));
-
-    let undo = gio::SimpleAction::new("undo", None);
-    let redo = gio::SimpleAction::new("redo", None);
-    let editor = Editor {
-        recipe: recipe.clone(),
-        history: Rc::default(),
-        settling: Rc::default(),
-        adjustments: adjustments.clone(),
-        presets: presets.clone(),
-        worker: worker.clone(),
-        undo: undo.clone(),
-        redo: redo.clone(),
-    };
-    editor.update_actions();
-    {
-        let editor = editor.clone();
-        adjustments.connect_changed(move |_| editor.edited());
-    }
-    {
-        let editor = editor.clone();
-        presets.connect_chosen(move |preset| editor.choose(preset));
-    }
-    {
-        let editor = editor.clone();
-        undo.connect_activate(move |_, _| editor.undo());
-    }
-    {
-        let editor = editor.clone();
-        redo.connect_activate(move |_, _| editor.redo());
-    }
 
     let compare = gio::SimpleAction::new_stateful("compare", None, &false.to_variant());
     {
@@ -119,6 +85,12 @@ pub fn build(app: &adw::Application) {
         .action_name("win.compare")
         .build();
     header.pack_end(&before);
+    let export = gtk::Button::builder()
+        .label("Export")
+        .tooltip_text("Save as TIFF next to the original")
+        .action_name("win.export")
+        .build();
+    header.pack_end(&export);
 
     let toasts = adw::ToastOverlay::new();
     toasts.set_child(Some(&body));
@@ -134,9 +106,27 @@ pub fn build(app: &adw::Application) {
         .default_height(900)
         .content(&toolbar)
         .build();
-    window.add_action(&undo);
-    window.add_action(&redo);
     window.add_action(&compare);
+
+    let editor = Editor::new(
+        &window,
+        recipe,
+        adjustments,
+        presets.clone(),
+        worker.clone(),
+        toasts.clone(),
+    );
+    {
+        let editor = editor.clone();
+        window.connect_close_request(move |_| {
+            editor.flush();
+            glib::Propagation::Proceed
+        });
+    }
+
+    let export = gio::SimpleAction::new("export", None);
+    export.set_enabled(false);
+    window.add_action(&export);
 
     let photos = Photos {
         window: window.clone(),
@@ -145,7 +135,8 @@ pub fn build(app: &adw::Application) {
         title,
         toasts,
         worker,
-        recipe,
+        editor,
+        export: export.clone(),
         accepted,
         displayed: Rc::new(Cell::new(None)),
         latest: Rc::new(Cell::new(0)),
@@ -158,6 +149,10 @@ pub fn build(app: &adw::Application) {
             .build()
     };
     window.add_action_entries([open]);
+    {
+        let photos = photos.clone();
+        export.connect_activate(move |_, _| photos.export_beside());
+    }
 
     let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
     drop.connect_drop(move |_, value, _, _| {
@@ -187,89 +182,8 @@ fn button(icon: &str, tooltip: &str, action: &str) -> gtk::Button {
         .build()
 }
 
-/// Changes to the recipe, from the controls, the presets and the history.
-#[derive(Clone)]
-struct Editor {
-    recipe: Rc<RefCell<Recipe>>,
-    history: Rc<RefCell<History>>,
-    /// Pending commit of the latest change to the history.
-    settling: Rc<RefCell<Option<glib::SourceId>>>,
-    adjustments: Rc<Adjustments>,
-    presets: PresetBrowser,
-    worker: Rc<Worker>,
-    undo: gio::SimpleAction,
-    redo: gio::SimpleAction,
-}
-
-impl Editor {
-    /// After the user moved a control.
-    fn edited(&self) {
-        self.presets.unselect();
-        self.worker.render(*self.recipe.borrow());
-        self.cancel_commit();
-        let this = self.clone();
-        let source = glib::timeout_add_local_once(SETTLE, move || {
-            this.settling.take();
-            this.commit();
-        });
-        *self.settling.borrow_mut() = Some(source);
-        self.update_actions();
-    }
-
-    fn choose(&self, preset: &Preset) {
-        preset.apply(&mut self.recipe.borrow_mut());
-        self.adjustments.sync();
-        self.worker.render(*self.recipe.borrow());
-        self.commit();
-    }
-
-    fn undo(&self) {
-        self.cancel_commit();
-        let current = *self.recipe.borrow();
-        let previous = self.history.borrow_mut().undo(current);
-        if let Some(previous) = previous {
-            self.restore(previous);
-        }
-    }
-
-    fn redo(&self) {
-        self.cancel_commit();
-        let current = *self.recipe.borrow();
-        let next = self.history.borrow_mut().redo(current);
-        if let Some(next) = next {
-            self.restore(next);
-        }
-    }
-
-    fn restore(&self, recipe: Recipe) {
-        *self.recipe.borrow_mut() = recipe;
-        self.adjustments.sync();
-        self.presets.unselect();
-        self.worker.render(recipe);
-        self.update_actions();
-    }
-
-    fn commit(&self) {
-        self.cancel_commit();
-        self.history.borrow_mut().commit(*self.recipe.borrow());
-        self.update_actions();
-    }
-
-    fn cancel_commit(&self) {
-        if let Some(source) = self.settling.take() {
-            source.remove();
-        }
-    }
-
-    fn update_actions(&self) {
-        let current = *self.recipe.borrow();
-        let history = self.history.borrow();
-        self.undo.set_enabled(history.can_undo(current));
-        self.redo.set_enabled(history.can_redo(current));
-    }
-}
-
-/// Opens photos and hands them to the preview worker.
+/// Opens photos, hands them to the preview worker and the editor, and
+/// exports them.
 #[derive(Clone)]
 struct Photos {
     window: adw::ApplicationWindow,
@@ -278,7 +192,8 @@ struct Photos {
     title: adw::WindowTitle,
     toasts: adw::ToastOverlay,
     worker: Rc<Worker>,
-    recipe: Rc<RefCell<Recipe>>,
+    editor: Editor,
+    export: gio::SimpleAction,
     /// The photo whose previews reach the canvas.
     accepted: Rc<Cell<Option<PhotoId>>>,
     /// The last photo opened successfully.
@@ -334,7 +249,7 @@ impl Photos {
                     let proxy = photo.downscale_to_fit(PROXY_SIDE);
                     let small = proxy.downscale_to_fit(THUMBNAIL_SIDE);
                     let before = (proxy.width(), proxy.height(), proxy.to_srgb8());
-                    (proxy, small, before)
+                    (proxy, small, before, sidecar::read(&decoding))
                 })
             })
             .await;
@@ -344,7 +259,8 @@ impl Photos {
             }
             let name = file_name(&path);
             match result {
-                Ok(Ok((proxy, small, (width, height, before)))) => {
+                Ok(Ok((proxy, small, (width, height, before), saved))) => {
+                    this.open_edit(&path, saved);
                     // The spinner stays until the first preview arrives.
                     this.canvas
                         .set_before(worker::texture(width, height, before));
@@ -353,6 +269,7 @@ impl Photos {
                     this.accepted.set(Some(id));
                     this.title.set_subtitle(&name);
                     this.thumbnails(id, small);
+                    this.export.set_enabled(true);
                 }
                 Ok(Err(e)) => this.failed(&format!("Cannot open {name}: {e}")),
                 Err(_) => this.failed(&format!("Cannot open {name}: the loader crashed")),
@@ -366,9 +283,64 @@ impl Photos {
         self.accepted.set(self.displayed.get());
         self.canvas.stop_loading();
         if self.displayed.get().is_some() {
-            self.worker.render(*self.recipe.borrow());
+            self.worker.render(self.editor.recipe());
         }
         self.toast(message);
+    }
+
+    /// Hands the photo to the editor with the recipe from its sidecar.
+    fn open_edit(&self, path: &Path, saved: Result<Option<Recipe>, SidecarError>) {
+        match saved {
+            Ok(recipe) => self.editor.open(path, recipe, true),
+            Err(e) => {
+                self.editor.open(path, None, false);
+                self.toast(&format!(
+                    "Edits to {} will not be saved: {e}",
+                    file_name(path)
+                ));
+            }
+        }
+    }
+
+    /// Exports the photo being edited as a 16-bit TIFF in its own folder,
+    /// replacing the previous export.
+    fn export_beside(&self) {
+        if let Some(photo) = self.editor.photo() {
+            let target = argento_io::export::beside(&photo);
+            self.export(photo, target);
+        }
+    }
+
+    /// Renders `photo` at full resolution with the current recipe and writes
+    /// it to `target`, in a background thread.
+    fn export(&self, photo: PathBuf, target: PathBuf) {
+        let name = file_name(&target);
+        if argento_io::export::Format::from_path(&target).is_none() {
+            self.toast(&format!("Cannot export {name}: use .jpg, .tif or .png"));
+            return;
+        }
+        let progress = adw::Toast::builder()
+            .title(format!("Exporting {name}…"))
+            .timeout(0)
+            .build();
+        self.toasts.add_toast(progress.clone());
+
+        let recipe = self.editor.recipe();
+        let this = self.clone();
+        glib::spawn_future_local(async move {
+            let result = gio::spawn_blocking(move || -> Result<(), String> {
+                let source = argento_io::load::load(&photo).map_err(|e| e.to_string())?;
+                let output = Pipeline::new(source).run(&recipe);
+                argento_io::export::export(&output, &target).map_err(|e| e.to_string())
+            })
+            .await;
+            progress.dismiss();
+            match result {
+                Ok(Ok(())) => this.toast(&format!("Exported {name}")),
+                Ok(Err(e)) => this.toast(&format!("Cannot export {name}: {e}")),
+                Err(_) => this.toast(&format!("Cannot export {name}: the export crashed")),
+            }
+        });
     }
 
     /// Renders the preset thumbnails of the photo in a background thread.

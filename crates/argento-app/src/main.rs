@@ -2,6 +2,7 @@
 
 mod adjustments;
 mod canvas;
+mod editor;
 mod histogram;
 mod history;
 mod preset_browser;
@@ -22,6 +23,7 @@ fn main() -> glib::ExitCode {
     });
     app.connect_activate(window::build);
     app.set_accels_for_action("win.open", &["<Ctrl>o"]);
+    app.set_accels_for_action("win.export", &["<Ctrl>e"]);
     app.set_accels_for_action("win.undo", &["<Ctrl>z"]);
     app.set_accels_for_action("win.redo", &["<Ctrl><Shift>z", "<Ctrl>y"]);
     app.set_accels_for_action("win.compare", &["backslash"]);

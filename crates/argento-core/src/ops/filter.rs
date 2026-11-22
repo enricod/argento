@@ -2,13 +2,15 @@
 //! the lens does with black-and-white film.
 
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::image::{GrayImage, RgbImage};
 
 /// Rec. 709 luminance: how the eye weighs red, green and blue.
 const NEUTRAL: [f32; 3] = [0.2126, 0.7152, 0.0722];
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Filter {
     /// No filter: plain luminance.
     #[default]
@@ -48,7 +50,8 @@ impl Filter {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct FilterParams {
     pub filter: Filter,
     /// From 0 (no effect, plain luminance) to 1 (the full filter).

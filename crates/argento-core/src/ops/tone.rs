@@ -3,9 +3,12 @@
 //! Both are curves in perceptual space (sRGB-encoded luminance) that keep
 //! black and white where they are, so they never clip.
 
+use serde::{Deserialize, Serialize};
+
 use crate::image::{GrayImage, linear_to_srgb, srgb_to_linear};
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ToneParams {
     /// From -1 (darker midtones) to 1 (lighter midtones).
     pub brightness: f32,

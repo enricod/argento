@@ -95,6 +95,15 @@ impl RgbImage {
             .map(|&v| (linear_to_srgb(v.clamp(0.0, 1.0)) * 255.0).round() as u8)
             .collect()
     }
+
+    /// Encodes the image as 16-bit sRGB, three samples per pixel, for
+    /// export. Values outside `[0, 1]` are clipped.
+    pub fn to_srgb16(&self) -> Vec<u16> {
+        self.data
+            .par_iter()
+            .map(|&v| (linear_to_srgb(v.clamp(0.0, 1.0)) * 65535.0).round() as u16)
+            .collect()
+    }
 }
 
 /// A single-channel image in linear light: one `f32` luminance sample per
@@ -205,6 +214,22 @@ mod tests {
     fn to_srgb8_clips_out_of_range_values() {
         let image = RgbImage::from_linear(1, 1, vec![-0.5, 2.0, 1.0]);
         assert_eq!(image.to_srgb8(), [0, 255, 255]);
+    }
+
+    #[test]
+    fn to_srgb16_spans_the_full_range_and_clips() {
+        let image = RgbImage::from_linear(1, 1, vec![-0.5, 2.0, 0.0]);
+        assert_eq!(image.to_srgb16(), [0, 65535, 0]);
+        // Every 8-bit level lands on its 16-bit counterpart (v * 257),
+        // within the precision of f32.
+        let samples = (0..=255u16)
+            .flat_map(|v| [f32::from(v) / 255.0; 3])
+            .collect();
+        let image = RgbImage::from_srgb(256, 1, samples);
+        for (v, &encoded) in image.to_srgb16().iter().step_by(3).enumerate() {
+            let expected = v as i32 * 257;
+            assert!((i32::from(encoded) - expected).abs() <= 2, "{v}: {encoded}");
+        }
     }
 
     #[test]

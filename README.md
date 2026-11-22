@@ -15,9 +15,14 @@ stage: see the [roadmap](docs/ARCHITECTURE.md#7-roadmap).
 - 15 built-in presets, with thumbnails rendered on the current photo.
 - Undo and redo, before/after comparison, luminance histogram.
 - A live preview, rendered in the background on a reduced copy of the photo.
+- Non-destructive: edits are saved automatically in a small text file next
+  to the photo (`photo.jpg.argento`), and the photo itself is never
+  modified. Opening the photo again brings the edit back.
+- Export at full resolution as a 16-bit TIFF next to the original
+  (`photo.jpg` → `photo-bw.tif`).
 
-Not there yet: saving edits next to the photo, export, colour management
-(files are assumed to be sRGB).
+Not there yet: colour management (files are assumed to be sRGB), copying
+EXIF metadata on export.
 
 ## Building
 
@@ -39,6 +44,7 @@ cargo run --release
 | Shortcut | Action |
 |---|---|
 | Ctrl+O | Open a photo |
+| Ctrl+E | Export |
 | Ctrl+Z | Undo |
 | Ctrl+Shift+Z, Ctrl+Y | Redo |
 | `\` | Show the original |
@@ -49,8 +55,8 @@ The code is split into three crates:
 
 - `argento-core`: the image processing, with no dependency on GTK or the
   file system.
-- `argento-io`: loading files (and later exporting, colour management,
-  sidecars).
+- `argento-io`: loading and exporting files, sidecars (and later colour
+  management and metadata).
 - `argento-app`: the GTK interface, the `argento` binary.
 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (in Italian) describes the

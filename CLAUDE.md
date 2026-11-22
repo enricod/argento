@@ -24,10 +24,11 @@ cargo fmt
   - `pipeline`: runs a `Recipe` with a cache per stage.
   - `recipe`, `preset`: the parameters of an edit; presets are partial
     recipes.
-- `crates/argento-io`: file loading (later export, ICC, metadata, sidecars).
+- `crates/argento-io`: `load`, `export`, `sidecar` (later ICC, metadata).
 - `crates/argento-app`: the GTK app, binary `argento`.
-  - `window`: layout, `Photos` (loading) and `Editor` (recipe changes,
-    history).
+  - `window`: layout, `Photos` (loading, export).
+  - `editor`: recipe changes from controls, presets and history; autosaves
+    the sidecar once a change settles.
   - `worker`: the preview thread, latest-request-wins.
   - `canvas`, `adjustments`, `preset_browser`, `histogram`, `history`.
 

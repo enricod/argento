@@ -14,6 +14,14 @@ pub struct History {
 }
 
 impl History {
+    /// A history with no steps, starting from `recipe`.
+    pub fn starting_at(recipe: Recipe) -> Self {
+        Self {
+            committed: recipe,
+            ..Self::default()
+        }
+    }
+
     /// Records `current` as a step, unless nothing changed since the last one.
     pub fn commit(&mut self, current: Recipe) {
         if current != self.committed {

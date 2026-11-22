@@ -6,6 +6,7 @@
 //! midtones, so that pure blacks and whites neither clip nor grow halos.
 
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::blur;
 use crate::image::{GrayImage, linear_to_srgb, srgb_to_linear};
@@ -19,7 +20,8 @@ const SCALES: [(f32, f32); 2] = [(0.002, 0.6), (0.01, 0.4)];
 const GAIN_UP: f32 = 2.0;
 const GAIN_DOWN: f32 = 1.0;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct StructureParams {
     /// From -1 (smooth) to 1 (strong texture).
     pub amount: f32,
