@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#424245"/>
+      <stop offset="1" stop-color="#1e1e21"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="0.15" y1="0.1" x2="0.85" y2="0.9">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#c0bfbc"/>
+      <stop offset="0.5" stop-color="#f6f5f4"/>
+      <stop offset="0.75" stop-color="#8e8d8a"/>
+      <stop offset="1" stop-color="#deddda"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5e5c64"/>
+      <stop offset="0.7" stop-color="#deddda"/>
+    </linearGradient>
+    <clipPath id="lens">
+      <circle cx="64" cy="62" r="33"/>
+    </clipPath>
+  </defs>
+
+  <!-- Tile, with its darker base -->
+  <rect x="8" y="16" width="112" height="104" rx="18" fill="#111113"/>
+  <rect x="8" y="10" width="112" height="104" rx="18" fill="url(#tile)"/>
+
+  <!-- Silver ring -->
+  <circle cx="64" cy="64" r="45" fill="#000" fill-opacity="0.35"/>
+  <circle cx="64" cy="62" r="45" fill="url(#silver)"/>
+  <circle cx="64" cy="62" r="37" fill="#1c1a20"/>
+
+  <!-- Black-and-white landscape seen through the lens -->
+  <g clip-path="url(#lens)">
+    <rect x="30" y="28" width="68" height="68" fill="url(#sky)"/>
+    <circle cx="77" cy="47" r="7" fill="#ffffff"/>
+    <path d="M30 80 L47 60 L57 70 L72 52 L98 78 L98 96 L30 96 Z" fill="#77767b"/>
+    <path d="M30 86 L44 76 L58 84 L74 72 L98 88 L98 96 L30 96 Z" fill="#1c1a20"/>
+  </g>
+  <circle cx="64" cy="62" r="33" fill="none" stroke="#000" stroke-opacity="0.45" stroke-width="2"/>
+
+  <!-- Highlight on the ring -->
+  <path d="M30 46 A40 40 0 0 1 64 21" fill="none" stroke="#fff" stroke-opacity="0.8" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

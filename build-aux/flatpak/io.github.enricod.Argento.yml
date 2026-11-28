@@ -1,0 +1,60 @@
+id: io.github.enricod.Argento
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: argento
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  # Argento writes its sidecar (photo.jpg.argento) and the exported TIFF next to the
+  # photo. The file chooser portal only grants access to the chosen file, not to its
+  # folder, so it needs lasting access to where photos live: the home folder and
+  # removable media.
+  - --filesystem=home
+  - --filesystem=/media
+  - --filesystem=/run/media
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /share/doc
+  - /share/man
+  - '*.la'
+  - '*.a'
+
+modules:
+  - name: argento
+    buildsystem: simple
+    build-options:
+      env:
+        # Vendored crates from cargo-sources.json: no network during the build.
+        CARGO_HOME: /run/build/argento/cargo
+    build-commands:
+      - cargo --offline build --release
+      - install -Dm755 target/release/argento -t /app/bin
+      - install -Dm644 data/io.github.enricod.Argento.desktop -t /app/share/applications
+      - install -Dm644 data/io.github.enricod.Argento.metainfo.xml -t /app/share/metainfo
+      # D-Bus activation: other apps (Photobrowser, Files) open photos through
+      # org.freedesktop.Application.Open.
+      - install -Dm644 data/io.github.enricod.Argento.service -t /app/share/dbus-1/services
+      - install -Dm644 data/icons/hicolor/scalable/apps/io.github.enricod.Argento.svg
+        -t /app/share/icons/hicolor/scalable/apps
+    sources:
+      # The local checkout. For Flathub this becomes a git source pinned to a release tag.
+      - type: dir
+        path: ../..
+        skip:
+          - target
+          - .git
+          - .flatpak-builder
+          - build-flatpak
+          - repo-flatpak
+      - cargo-sources.json

@@ -13,6 +13,8 @@ cargo run                       # start the app
 cargo test                      # all crates
 cargo clippy --all-targets      # must be clean
 cargo fmt
+make flatpak                    # build and install the Flatpak for this user
+make flatpak-sources            # after every Cargo.lock change
 ```
 
 ## Layout
@@ -54,7 +56,7 @@ cargo fmt
 ## Versions
 
 Rust edition 2024. `gtk4` 0.11 (renamed `gtk`, feature `v4_12`),
-`libadwaita` 0.9 (renamed `adw`, feature `v1_6`).
+`libadwaita` 0.9 (renamed `adw`, feature `v1_8`).
 
 ## Git
 
