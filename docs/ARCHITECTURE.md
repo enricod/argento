@@ -224,6 +224,7 @@ aggiorna canvas ◄─ MemoryTexture ◄┘
 | D5 | Pipeline a ordine fisso | Corrisponde al modello di Silver Efex, semplifica cache e interfaccia |
 | D6 | Parametri spaziali in unità relative | Anteprima ed esportazione devono coincidere |
 | D7 | Editing non distruttivo con sidecar TOML | L'originale non viene mai toccato; il sidecar è leggibile e versionabile |
+| D8 | La pellicola sostituisce il filtro colorato allo stadio 1; la grana è una frazione del lato lungo, con rumore da hash della posizione | Una sola sorgente di risposta spettrale per volta. Il rumore deterministico fa sì che la stessa foto abbia sempre la stessa grana, e la frazione fa coincidere anteprima ed esportazione |
 
 ---
 
