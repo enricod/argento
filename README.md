@@ -27,7 +27,7 @@ EXIF metadata on export.
 ## Building
 
 You need Rust 1.88 or newer, and the development files of GTK 4.12 or newer
-and libadwaita 1.6 or newer. On Debian and Ubuntu:
+and libadwaita 1.8 or newer. On Debian and Ubuntu:
 
 ```sh
 sudo apt install libgtk-4-dev libadwaita-1-dev
@@ -39,6 +39,23 @@ Then:
 cargo run --release
 ```
 
+### Flatpak
+
+The manifest is `build-aux/flatpak/io.github.enricod.Argento.yml` (GNOME 51
+runtime). You need `flatpak-builder` and the Flathub remote:
+
+```sh
+make flatpak                 # build and install for the current user
+flatpak run io.github.enricod.Argento
+make flatpak-bundle          # argento.flatpak, to install on another computer
+```
+
+Crates are vendored from `build-aux/flatpak/cargo-sources.json`, since the build
+has no network: run `make flatpak-sources` whenever `Cargo.lock` changes.
+
+The Flatpak has access to the home folder and removable media, because
+Argento writes its sidecar and the exported TIFF next to each photo.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
@@ -48,6 +65,8 @@ cargo run --release
 | Ctrl+Z | Undo |
 | Ctrl+Shift+Z, Ctrl+Y | Redo |
 | `\` | Show the original |
+| Ctrl+? | Keyboard shortcuts |
+| Ctrl+Q | Quit |
 
 ## Architecture
 

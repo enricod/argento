@@ -47,12 +47,6 @@ impl PresetBrowser {
         let mut grids = Vec::new();
         let mut pictures = Vec::new();
         for category in Category::ALL {
-            let heading = gtk::Label::builder()
-                .label(title(category))
-                .xalign(0.0)
-                .margin_top(6)
-                .css_classes(["heading"])
-                .build();
             let grid = gtk::FlowBox::builder()
                 .selection_mode(gtk::SelectionMode::Single)
                 .activate_on_single_click(true)
@@ -69,8 +63,19 @@ impl PresetBrowser {
                 grid.append(&cell);
                 pictures.push(picture);
             }
-            content.append(&heading);
-            content.append(&grid);
+            // Each category folds away on its own, so that the presets the
+            // user cares about stay in view.
+            let heading = gtk::Label::builder()
+                .label(title(category))
+                .xalign(0.0)
+                .css_classes(["heading"])
+                .build();
+            let section = gtk::Expander::builder()
+                .label_widget(&heading)
+                .expanded(true)
+                .child(&grid)
+                .build();
+            content.append(&section);
             grids.push((grid, presets));
         }
 

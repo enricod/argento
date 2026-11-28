@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Argento
+Comment=Black-and-white photo editing
+Exec=argento %f
+Icon=io.github.enricod.Argento
+Terminal=false
+Categories=Graphics;2DGraphics;RasterGraphics;Photography;
+Keywords=black and white;monochrome;photo;editor;
+MimeType=image/jpeg;image/png;image/tiff;
+StartupNotify=true
+DBusActivatable=true
+StartupWMClass=io.github.enricod.Argento

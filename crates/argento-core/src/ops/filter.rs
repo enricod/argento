@@ -78,7 +78,12 @@ impl FilterParams {
 }
 
 pub fn apply(image: &RgbImage, params: &FilterParams) -> GrayImage {
-    let [r, g, b] = params.weights();
+    mix(image, params.weights())
+}
+
+/// Stage 1 with any channel weights: a colour filter, or the spectral
+/// response of a film stock.
+pub fn mix(image: &RgbImage, [r, g, b]: [f32; 3]) -> GrayImage {
     let data = image
         .data()
         .par_chunks_exact(3)

@@ -119,6 +119,21 @@ mod tests {
     }
 
     #[test]
+    fn a_film_reads_back_with_its_stock_and_grain() {
+        use argento_core::ops::film::{FilmParams, Stock};
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("a.jpg");
+        let mut recipe = edited();
+        recipe.film = Some(FilmParams {
+            stock: Stock::HighContrast,
+            grain: 0.4,
+            grain_size: 0.002,
+        });
+        write(&photo, &recipe).unwrap();
+        assert_eq!(read(&photo).unwrap(), Some(recipe));
+    }
+
+    #[test]
     fn the_file_is_readable_toml() {
         let dir = tempfile::tempdir().unwrap();
         let photo = dir.path().join("a.jpg");

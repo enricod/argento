@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.enricod.Argento</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Argento</name>
+  <summary>Black-and-white photo editing</summary>
+  <developer id="io.github.enricod">
+    <name>Enrico Donelli</name>
+  </developer>
+
+  <description>
+    <p>
+      Argento turns colour photos into black and white, in the spirit of Silver Efex:
+      ready-made presets to start from, and fine adjustments when you need them.
+    </p>
+    <ul>
+      <li>Colour filters (red, orange, yellow, green, blue) with adjustable strength</li>
+      <li>Brightness, contrast and structure (local contrast)</li>
+      <li>Built-in presets, previewed on the current photo</li>
+      <li>Undo and redo, before/after comparison, histogram</li>
+      <li>Non-destructive: edits are kept in a small file next to the photo</li>
+      <li>Export at full resolution as 16-bit TIFF</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">io.github.enricod.Argento.desktop</launchable>
+
+  <url type="homepage">https://github.com/enricod/argento</url>
+  <url type="bugtracker">https://github.com/enricod/argento/issues</url>
+  <url type="vcs-browser">https://github.com/enricod/argento</url>
+
+  <categories>
+    <category>Graphics</category>
+    <category>Photography</category>
+  </categories>
+
+  <keywords>
+    <keyword>black and white</keyword>
+    <keyword>monochrome</keyword>
+    <keyword>photo</keyword>
+    <keyword>editor</keyword>
+  </keywords>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.1.0" date="2026-11-22">
+      <description>
+        <p>First release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

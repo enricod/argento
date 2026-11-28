@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <!-- GTK looks for icons under the application's resource base path. -->
+  <gresource prefix="/io/github/enricod/Argento/icons/scalable/apps">
+    <file preprocess="xml-stripblanks">io.github.enricod.Argento.svg</file>
+  </gresource>
+</gresources>

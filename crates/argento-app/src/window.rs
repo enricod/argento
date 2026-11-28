@@ -20,7 +20,25 @@ use crate::histogram::Histogram;
 use crate::preset_browser::{self, PresetBrowser, THUMBNAIL_SIDE};
 use crate::worker::{self, PROXY_SIDE, PhotoId, Worker};
 
-pub fn build(app: &adw::Application) {
+/// The main window. Argento has one: opening a file from elsewhere loads it
+/// there.
+#[derive(Clone)]
+pub struct MainWindow {
+    window: adw::ApplicationWindow,
+    photos: Photos,
+}
+
+impl MainWindow {
+    pub fn present(&self) {
+        self.window.present();
+    }
+
+    pub fn open(&self, path: PathBuf) {
+        self.photos.load(path);
+    }
+}
+
+pub fn build(app: &adw::Application) -> MainWindow {
     let canvas = Canvas::new();
     let histogram = Histogram::new();
     let presets = PresetBrowser::new();
@@ -84,6 +102,7 @@ pub fn build(app: &adw::Application) {
         .tooltip_text("Show Original")
         .action_name("win.compare")
         .build();
+    header.pack_end(&crate::menu::button());
     header.pack_end(&before);
     let export = gtk::Button::builder()
         .label("Export")
@@ -154,6 +173,11 @@ pub fn build(app: &adw::Application) {
         export.connect_activate(move |_, _| photos.export_beside());
     }
 
+    let main = MainWindow {
+        window: window.clone(),
+        photos: photos.clone(),
+    };
+
     let drop = gtk::DropTarget::new(gdk::FileList::static_type(), gdk::DragAction::COPY);
     drop.connect_drop(move |_, value, _, _| {
         let path = value
@@ -170,8 +194,7 @@ pub fn build(app: &adw::Application) {
         }
     });
     canvas.widget().add_controller(drop);
-
-    window.present();
+    main
 }
 
 fn button(icon: &str, tooltip: &str, action: &str) -> gtk::Button {
